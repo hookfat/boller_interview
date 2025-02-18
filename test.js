@@ -59,8 +59,10 @@ class Passenger {
         this.passengers = this.passengers.filter(p => p.destFloor !== this.currentFloor);
         this.targetFloors.delete(this.currentFloor);
         this.serviced = true; // 標記本單位時間已進行下客服務
+        return departing.length;
       }
       this.targetFloors.delete(this.currentFloor);
+      return 0;
     }
     
     // 上客，將等待乘客全部接入（若有足夠空位）
@@ -134,7 +136,7 @@ class Passenger {
         const floor = this.floors[elevator.currentFloor];
 
         if (elevator.targetFloors.has(elevator.currentFloor)) {
-            elevator.stop();
+            this.completedPassengers += elevator.stop();
         }
 
         if (floor && floor.hasWaitingPassengers()) {
@@ -155,12 +157,21 @@ class Passenger {
         console.log(`\n==== 時間 ${this.time} ====`);
         
         // 重置每部電梯的服務旗標
-        this.elevators.forEach(elevator => elevator.serviced = false);
+        this.elevators.forEach(elevator => {
+          elevator.serviced = false;
+          console.log(`電梯 ${elevator.id} 正在 ${elevator.currentFloor} 樓，乘客：${elevator.passengers.map((p=>p.id))}`)
+        });
+
+        console.log('---------------');
         
         // 1. 產生乘客（若尚未達到 40 人次）
         this.generatePassenger();
+
+        console.log('---------------');
         
         this.assignElevators();
+
+        console.log('---------------');
         
         // 4. 更新每部電梯的方向，並僅對未服務過的電梯進行移動
         this.elevators.forEach(elevator => {
@@ -172,14 +183,6 @@ class Passenger {
             console.log(`電梯 ${elevator.id} 在 ${elevator.currentFloor} 樓因服務（上/下客）而暫停移動`);
           }
         });
-        
-        // 5. 更新完成乘客數：計算等待樓層與車內乘客數
-        let waitingCount = 0;
-        for (let i = 1; i <= 10; i++) {
-          waitingCount += this.floors[i].waitingPassengers.length;
-        }
-        const inElevators = this.elevators.reduce((sum, elevator) => sum + elevator.passengers.length, 0);
-        this.completedPassengers = this.totalPassengerCount - waitingCount - inElevators;
         
         this.time++; // 時間累加 1 秒
       }
