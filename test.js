@@ -40,6 +40,7 @@ class Passenger {
       this.passengers = [];
       this.targetFloors = new Set(); // 儲存所有要停靠的樓層（包含上客與下客）
       this.serviced = false; // 當前單位時間內是否已執行上/下客
+      this.externalCalls = new Set();
     }
     
     // 移動一層（耗時 1 秒）
@@ -83,14 +84,24 @@ class Passenger {
     // 更新電梯方向：若沒有 target 則 idle，否則依照最接近的 target 決定方向
     updateDirection() {
       if (this.targetFloors.size === 0) {
-        this.direction = 'idle';
-        return;
+        if(this.externalCalls.size === 0){
+          this.direction = 'idle';
+        }
+        else{
+          const next = this.getNearestFloor(Array.from(this.externalCalls));
+          this.direction = next > this.currentFloor ? 'up' : 'down';
+        }
       }
-      const targets = Array.from(this.targetFloors);
-      const diff = targets.map(floor => ({ floor, dist: Math.abs(floor - this.currentFloor) }));
+      else{
+        const next = this.getNearestFloor();
+        this.direction = next > this.currentFloor ? 'up' : 'down';
+      }
+    }
+
+    getNearestFloor(floorArray = Array.from(this.targetFloors), currentfloor = this.currentFloor){
+      const diff = floorArray.map(floor => ({ floor, dist: Math.abs(floor - currentfloor) }));
       diff.sort((a, b) => a.dist - b.dist);
-      const nextFloor = diff[0].floor;
-      this.direction = (nextFloor > this.currentFloor) ? 'up' : 'down';
+      return diff[0].floor;
     }
   }
   
@@ -124,10 +135,10 @@ class Passenger {
       this.floors[startFloor].addWaitingPassenger(passenger);
       
       // 產生乘客後，直接將其起始樓層加入所有電梯的 targetFloors
-      this.elevators.forEach(elevator => elevator.targetFloors.add(startFloor));
+      this.elevators.forEach(elevator => elevator.externalCalls.add(startFloor));
       
       this.totalPassengerCount++;
-      console.log(`時間 ${this.time}: 產生乘客 ${passenger.id} 於 ${startFloor} 樓 -> ${destFloor} 樓`);
+      console.log(`產生乘客 ${passenger.id} 於 ${startFloor} 樓 -> ${destFloor} 樓`);
     }
     
     // 當電梯停在某樓層檢查是否需要下客與上客
@@ -147,6 +158,11 @@ class Passenger {
               elevator.board(boarding);
             }
           }
+
+          if(!floor.hasWaitingPassengers()){
+            this.elevators.forEach((elevator)=> elevator.externalCalls.delete(floor.floorNumber));
+          }
+
         }
       });
     }
@@ -164,16 +180,14 @@ class Passenger {
 
         console.log('---------------');
         
-        // 1. 產生乘客（若尚未達到 40 人次）
+        // 產生乘客（若尚未達到 40 人次）
         this.generatePassenger();
 
         console.log('---------------');
         
         this.assignElevators();
-
-        console.log('---------------');
         
-        // 4. 更新每部電梯的方向，並僅對未服務過的電梯進行移動
+        // 更新每部電梯的方向，並僅對未服務過的電梯進行移動
         this.elevators.forEach(elevator => {
           elevator.updateDirection();
           if (elevator.direction !== 'idle' && !elevator.serviced) {
